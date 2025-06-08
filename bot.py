@@ -1,7 +1,7 @@
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
-load_dotenv()
+#load_dotenv()
 TOKEN = os.getenv("7757528486:AAGzef6JGBch7XUnaqRrtSU_BdRYzPpxf5U")
 
 from telegram import Update
@@ -60,7 +60,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 import json
-import os
+#import os
 
 DATA_FILE = "players.json"
 
