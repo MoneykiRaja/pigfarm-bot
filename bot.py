@@ -1,69 +1,19 @@
 import os
-#from dotenv import load_dotenv
-
-#load_dotenv()
-TOKEN = os.getenv("7757528486:AAGzef6JGBch7XUnaqRrtSU_BdRYzPpxf5U")
-
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import json
 import random
 from datetime import datetime, timedelta, timezone
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# 🐷 Trigger rebuild
+# Load token from environment variable
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Use proper env var name
+if not TOKEN:
+    print("❌ Error: TELEGRAM_BOT_TOKEN environment variable not set!")
+    exit(1)
 
-#import os
-#TOKEN = os.getenv("7757528486:AAGzef6JGBch7XUnaqRrtSU_BdRYzPpxf5U")
-#TOKEN = '7757528486:AAGzef6JGBch7XUnaqRrtSU_BdRYzPpxf5U'
+print("🔑 Loaded token:", TOKEN[:10] + "..." if TOKEN else "None")
 
-#start
-
-print("🔑 Loaded token:", TOKEN)
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = str(user.id)
-    data = load_data()
-
-    # Optional: Referrer check
-    referrer_id = context.args[0] if context.args else None
-
-    if user_id not in data:
-        # New user: create record
-        data[user_id] = {
-            "username": user.username or user.first_name,
-            "coins": 0,
-            "streak": 0,
-            "piglets": []
-        }
-
-        # Reward user for joining
-        data[user_id]["coins"] += 2
-
-        # ✅ Handle referral bonus
-        if referrer_id and referrer_id in data and referrer_id != user_id:
-            data[referrer_id]["coins"] += 5
-            data[referrer_id]["referrals"] = data[referrer_id].get("referrals", 0) + 1  # ✅ Track count
-            await update.message.reply_text("🎉 You joined with a referral! +2 coins for you 🐽")
-            try:
-                await context.bot.send_message(
-                    chat_id=int(referrer_id),
-                    text=f"🎉 Someone joined using your referral link! You earned 5 coins 🐷"
-                )
-            except:
-                pass
-        else:
-            await update.message.reply_text("🐷 Welcome to Pig Farm! Feed your pig and grow your farm.")
-
-        save_data(data)
-
-    else:
-        await update.message.reply_text("👋 You’re already part of the farm. Let’s grow some pigs!")
-
-
-
-import json
-#import os
-
+# Data management
 DATA_FILE = "players.json"
 
 def load_data():
@@ -94,11 +44,9 @@ TASKS = {
         "type": "manual",
         "description": "Share a pig meme in a group 🐷",
         "url": None,
-        "reward": "special_feed"
+        "reward": 5  # Changed from "special_feed" to integer for consistency
     }
- }
-
-
+}
 
 MARKET = [
     {"type": "normal", "price": 2},
@@ -107,21 +55,68 @@ MARKET = [
 ]
 
 def refresh_market():
-    import random
-    return random.choices(MARKET, k=3)  # 3 random offer
+    return random.choices(MARKET, k=3)  # 3 random offers
 
+# Command handlers
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = str(user.id)
+    data = load_data()
 
+    # Optional: Referrer check
+    referrer_id = context.args[0] if context.args else None
 
-#buy
+    if user_id not in data:
+        # New user: create record
+        data[user_id] = {
+            "username": user.username or user.first_name,
+            "coins": 0,
+            "streak": 0,
+            "piglets": [],
+            "referrals": 0,
+            "claimed_tasks": []
+        }
+
+        # Reward user for joining
+        data[user_id]["coins"] += 2
+
+        # Handle referral bonus
+        if referrer_id and referrer_id in data and referrer_id != user_id:
+            data[referrer_id]["coins"] += 5
+            data[referrer_id]["referrals"] = data[referrer_id].get("referrals", 0) + 1
+            await update.message.reply_text("🎉 You joined with a referral! +2 coins for you 🐽")
+            try:
+                await context.bot.send_message(
+                    chat_id=int(referrer_id),
+                    text=f"🎉 Someone joined using your referral link! You earned 5 coins 🐷"
+                )
+            except Exception as e:
+                print(f"Failed to send referral notification: {e}")
+        else:
+            await update.message.reply_text("🐷 Welcome to Pig Farm! Feed your pig and grow your farm.")
+
+        save_data(data)
+    else:
+        await update.message.reply_text("👋 You're already part of the farm. Let's grow some pigs!")
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
-
     data = load_data()
     today = datetime.now(timezone.utc).date().strftime("%Y-%m-%d")
 
-    if user_id in data and "pig" in data[user_id]:
+    # Initialize user data if not exists
+    if user_id not in data:
+        data[user_id] = {
+            "username": user.username or user.first_name,
+            "coins": 0,
+            "streak": 0,
+            "piglets": [],
+            "referrals": 0,
+            "claimed_tasks": []
+        }
+
+    if "pig" in data[user_id]:
         await update.message.reply_text("😅 You already own a pig!")
         return
 
@@ -133,22 +128,14 @@ async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "pregnant_date": None
     }
 
-    data[user_id] = data.get(user_id, {})  # If new user, create base
-    data[user_id]["username"] = user.username or user.first_name
     data[user_id]["pig"] = new_pig
-    data[user_id]["coins"] = data[user_id].get("coins", 0)
-    data[user_id]["streak"] = 0
     save_data(data)
 
     await update.message.reply_text("🎉 You just bought your first pig 🐖!\nTake good care of it and it might give you piglets!")
 
-
-#// feeding //
-
 async def feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
-
     data = load_data()
     today = datetime.now(timezone.utc).date()
     today_str = today.strftime("%Y-%m-%d")
@@ -169,14 +156,14 @@ async def feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     fed_dates.append(today_str)
     pig["fed_dates"] = fed_dates
 
-    # Streak logic (based on last 2 days)
-    last_3_days = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(1, 4)]
+    # Streak logic (based on consecutive days)
     streak = data[user_id].get("streak", 0)
-
-    if all(day in fed_dates for day in last_3_days):
+    yesterday = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    if len(fed_dates) == 1 or yesterday in fed_dates:
         streak += 1
         data[user_id]["coins"] = data[user_id].get("coins", 0) + 1
-        streak_msg = f"🔥 Streak continues! (+1 coin)"
+        streak_msg = f"🔥 Streak: {streak} days! (+1 coin)"
     else:
         streak = 1
         streak_msg = "🍽 Pig fed! Streak restarted."
@@ -185,20 +172,16 @@ async def feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_data(data)
 
     await update.message.reply_text(
-        f"✅ Your pig enjoyed the meal!\n{streak_msg}\n💰 Coins: {data[user_id]['coins']}\n🔥 Streak: {streak}"
+        f"✅ Your pig enjoyed the meal!\n{streak_msg}\n💰 Coins: {data[user_id]['coins']}"
     )
-
-
-# my farm check
 
 async def myfarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
-
     data = load_data()
 
     if user_id not in data or "pig" not in data[user_id]:
-        await update.message.reply_text("😢 You don’t have a pig yet. Use /buy to start your farm!")
+        await update.message.reply_text("😢 You don't have a pig yet. Use /buy to start your farm!")
         return
 
     user_data = data[user_id]
@@ -206,24 +189,25 @@ async def myfarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = datetime.now(timezone.utc).date()
 
     # Core info
-    today = datetime.now(timezone.utc).date()
     birth_date = datetime.strptime(pig["birth_date"], "%Y-%m-%d").date()
     age = (today - birth_date).days
     streak = user_data.get("streak", 0)
     coins = user_data.get("coins", 0)
 
-
     # Mood check
-    last_fed = pig["fed_dates"][-1] if pig["fed_dates"] else "Never"
-    days_missed = (today - datetime.strptime(last_fed, "%Y-%m-%d").date()).days if last_fed != "Never" else 999
-    if days_missed == 0:
-        mood = "😊 Happy"
-    elif days_missed == 1:
-        mood = "😐 Hungry"
-    elif days_missed < 4:
-        mood = "😟 Sad"
+    last_fed = pig["fed_dates"][-1] if pig["fed_dates"] else None
+    if last_fed:
+        days_missed = (today - datetime.strptime(last_fed, "%Y-%m-%d").date()).days
+        if days_missed == 0:
+            mood = "😊 Happy"
+        elif days_missed == 1:
+            mood = "😐 Hungry"
+        elif days_missed < 4:
+            mood = "😟 Sad"
+        else:
+            mood = "🏃 Ran Away"
     else:
-        mood = "🏃 Ran Away"
+        mood = "😴 Never Fed"
 
     # Pregnancy check
     pregnant_msg = ""
@@ -234,7 +218,7 @@ async def myfarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pregnant_msg = "🍼 Ready to give birth! Use /checkbreed to collect piglets."
         else:
             remaining = 3 - days_pregnant
-            pregnant_msg = f"🤰 Pregnant ({days_pregnant} days in). {remaining} day(s) until birth."
+            pregnant_msg = f"🤰 Pregnant ({days_pregnant} days). {remaining} day(s) until birth."
 
     # Piglet info
     piglet_count = len(user_data.get("piglets", []))
@@ -250,19 +234,18 @@ async def myfarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{pregnant_msg}"
     )
 
-# breed
 async def breed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     data = load_data()
     today = datetime.now(timezone.utc).date()
 
     if user_id not in data or "pig" not in data[user_id]:
-        await update.message.reply_text("🐷 You don’t own any pigs to breed!")
+        await update.message.reply_text("🐷 You don't own any pigs to breed!")
         return
 
     pig = data[user_id]["pig"]
 
-    # 🐖 Age Check
+    # Age Check (changed to 7 days minimum)
     birth_date_str = pig.get("birth_date")
     if not birth_date_str:
         await update.message.reply_text("❌ Pig birth date missing.")
@@ -270,34 +253,35 @@ async def breed(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     birth_date = datetime.strptime(birth_date_str, "%Y-%m-%d").date()
     age_days = (today - birth_date).days
-    if age_days < 1:
-        await update.message.reply_text("🍼 Your pig must be at least 30 days old to breed.")
+    if age_days < 7:
+        await update.message.reply_text("🍼 Your pig must be at least 7 days old to breed.")
         return
 
-    # 🍽 Feeding Check (last 3 days)
+    # Feeding Check (last 3 days)
     fed_dates = pig.get("fed_dates", [])
-    last_3 = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(1, 4)]
+    last_3 = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(3)]
     if not all(day in fed_dates for day in last_3):
         await update.message.reply_text("🍽 Your pig must be well-fed (last 3 days) to breed.")
         return
 
-    # 💰 Coin Check
+    # Coin Check
     coins = data[user_id].get("coins", 0)
     if coins < 1:
         await update.message.reply_text("💰 You need at least 1 coin to breed.")
         return
 
-    # ✅ BREED: deduct coin and set pregnancy
+    # Check if already pregnant
+    if pig.get("pregnant"):
+        await update.message.reply_text("🤰 Your pig is already pregnant!")
+        return
+
+    # BREED: deduct coin and set pregnancy
     data[user_id]["coins"] -= 1
     pig["pregnant"] = True
     pig["pregnant_date"] = today.strftime("%Y-%m-%d")
     save_data(data)
 
     await update.message.reply_text("💘 Your pig is now pregnant! Come back in 3 days to check for piglets.")
-
-
-
-#checkbreed
 
 async def checkbreed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -330,10 +314,7 @@ async def checkbreed(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Birth time! Generate piglets
-    coins_used = pig.get("breed_spent", 1)
-    min_pigs = coins_used
-    max_pigs = coins_used * 3
-    piglets_count = random.randint(min_pigs, max_pigs) 
+    piglets_count = random.randint(1, 4)  # 1-4 piglets
     piglets = []
     for _ in range(piglets_count):
         roll = random.randint(1, 100)
@@ -346,7 +327,6 @@ async def checkbreed(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     pig["pregnant"] = False
     pig["pregnant_date"] = None
-    pig["breed_spent"] = 0
     data[user_id]["piglets"] = data[user_id].get("piglets", []) + piglets
     save_data(data)
 
@@ -358,21 +338,30 @@ async def checkbreed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     summary_msg = "\n".join([f"🐽 {typ.title()}: {count}" for typ, count in summary.items()])
     await update.message.reply_text(f"🎉 Your pig gave birth to {piglets_count} piglet(s)!\n{summary_msg}")
 
-
-#sellpiglets
 async def sellpiglet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     data = load_data()
 
     if user_id not in data or not data[user_id].get("piglets"):
-        await update.message.reply_text("😢 You don’t have any piglets to sell.")
+        await update.message.reply_text("😢 You don't have any piglets to sell.")
+        return
+
+    # Show piglets first if no argument provided
+    if not context.args:
+        piglets = data[user_id]["piglets"]
+        msg = "🐽 Your piglets:\n"
+        for i, piglet in enumerate(piglets, 1):
+            price = 5 if piglet["type"] == "golden" else 3 if piglet["type"] == "spotted" else 1
+            msg += f"{i}. {piglet['type'].title()} (worth {price} coins)\n"
+        msg += "\nUse: /sellpiglet <number>"
+        await update.message.reply_text(msg)
         return
 
     # Validate input
     try:
         index = int(context.args[0]) - 1
-    except (IndexError, ValueError):
-        await update.message.reply_text("⚠️ Use: /sellpiglet <number>\nExample: /sellpiglet 2")
+    except ValueError:
+        await update.message.reply_text("⚠️ Please enter a valid number.")
         return
 
     piglets = data[user_id]["piglets"]
@@ -398,25 +387,20 @@ async def sellpiglet(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"💰 Sold your {pig_type} piglet for {coins_earned} coin(s)!\n"
-        f"🐖 Remaining piglets: {len(piglets)}"
+        f"🐖 Remaining piglets: {len(piglets)}\n"
+        f"💰 Total coins: {data[user_id]['coins']}"
     )
 
-#market display
 async def market(update: Update, context: ContextTypes.DEFAULT_TYPE):
     offers = refresh_market()
     context.user_data["market"] = offers
-   # update.market_offers = offers  # temp save for session
 
     msg = "🛒 Piglet Market — Buy with your coins!\n\n"
     for i, offer in enumerate(offers, 1):
         msg += f"{i}. {offer['type'].title()} piglet — {offer['price']} coins\n"
 
     msg += "\nUse /buymarket <number> to buy."
-    context.user_data["market"] = offers  # store offers per user
-
     await update.message.reply_text(msg)
-
-#user buy from market
 
 async def buymarket(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -429,11 +413,15 @@ async def buymarket(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ No market offers. Use /market first.")
         return
 
+    if not context.args:
+        await update.message.reply_text("⚠️ Use: /buymarket <number>")
+        return
+
     try:
         index = int(context.args[0]) - 1
         offer = offers[index]
-    except:
-        await update.message.reply_text("⚠️ Use: /buymarket <number>")
+    except (ValueError, IndexError):
+        await update.message.reply_text("⚠️ Invalid selection. Use /market to see options.")
         return
 
     if coins < offer["price"]:
@@ -450,32 +438,37 @@ async def buymarket(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ You bought a {offer['type']} piglet!\n💰 Coins left: {user_data['coins']}"
     )
 
-#referrals
 async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     data = load_data()
     user_data = data.get(user_id, {})
     referral_count = user_data.get("referrals", 0)
 
+    bot_username = context.bot.username
     await update.message.reply_text(
         f"📣 Share this link to earn 5 coins for every friend who joins!\n"
-        f"🔗 https://t.me/YourPigBot?start={user_id}\n\n"
+        f"🔗 https://t.me/{bot_username}?start={user_id}\n\n"
         f"👥 Total referrals: {referral_count}"
     )
 
-
-#tasks
-
 async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+    user_data = data.get(user_id, {})
+    claimed_tasks = user_data.get("claimed_tasks", [])
+    
     msg = "📋 Daily Piggy Tasks:\n\n"
 
     for code, task in TASKS.items():
-        msg += f"🔹 {task['description']}\n"
+        status = "✅ Completed" if code in claimed_tasks else "🔹 Available"
+        msg += f"{status} {task['description']}\n"
         if task["url"]:
             msg += f"🔗 {task['url']}\n"
-        reward_text = f"{task['reward']} coins" if isinstance(task['reward'], int) else task['reward']
+        reward_text = f"{task['reward']} coins"
         msg += f"🏆 Reward: {reward_text}\n"
-        msg += f"➡️ Type `/claim {code}` to receive reward\n\n"
+        if code not in claimed_tasks:
+            msg += f"➡️ Type `/claim {code}` to receive reward\n"
+        msg += "\n"
     
     await update.message.reply_text(msg)
 
@@ -502,12 +495,8 @@ async def claim(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Reward
-    if isinstance(task["reward"], int):
-        user_data["coins"] = user_data.get("coins", 0) + task["reward"]
-        reward_msg = f"💰 You earned {task['reward']} coins!"
-    else:
-        # Handle special reward like 'special_feed'
-        reward_msg = f"🎁 You received a reward: {task['reward']}! (Feature coming soon)"
+    user_data["coins"] = user_data.get("coins", 0) + task["reward"]
+    reward_msg = f"💰 You earned {task['reward']} coins!"
 
     claimed.append(task_code)
     user_data["claimed_tasks"] = claimed
@@ -515,24 +504,22 @@ async def claim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_data(data)
     await update.message.reply_text(reward_msg)
 
+# Main application
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TOKEN).build()
 
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("feed", feed))
+    app.add_handler(CommandHandler("myfarm", myfarm))
+    app.add_handler(CommandHandler("breed", breed))
+    app.add_handler(CommandHandler("checkbreed", checkbreed))
+    app.add_handler(CommandHandler("sellpiglet", sellpiglet))
+    app.add_handler(CommandHandler("market", market))
+    app.add_handler(CommandHandler("buymarket", buymarket))
+    app.add_handler(CommandHandler("referral", referral))
+    app.add_handler(CommandHandler("tasks", tasks))
+    app.add_handler(CommandHandler("claim", claim))
 
-
-app = ApplicationBuilder().token(TOKEN).build()
-
-app.add_handler(CommandHandler("start", start))
-
-app.add_handler(CommandHandler("buy", buy))
-app.add_handler(CommandHandler("feed", feed))
-app.add_handler(CommandHandler("myfarm", myfarm))
-app.add_handler(CommandHandler("breed", breed))
-app.add_handler(CommandHandler("checkbreed", checkbreed))
-app.add_handler(CommandHandler("sellpiglet", sellpiglet))
-app.add_handler(CommandHandler("market", market))
-app.add_handler(CommandHandler("buymarket", buymarket))
-app.add_handler(CommandHandler("referral", referral))
-app.add_handler(CommandHandler("tasks", tasks))
-app.add_handler(CommandHandler("claim", claim))
-
-print("🐷 Bot is running...")
-app.run_polling()
+    print("🐷 Bot is running...")
+    app.run_polling()
