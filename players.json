@@ -1,0 +1,39 @@
+{
+  "1576099978": {
+    "username": "DreamStarsInd",
+    "pig": {
+      "birth_date": "2025-06-06",
+      "fed_dates": [
+        "2025-06-04",
+        "2025-06-05",
+        "2025-06-06",
+        "2025-06-07"
+      ],
+      "pregnant": false,
+      "pregnant_date": null,
+      "breed_spent": 0
+    },
+    "coins": 11,
+    "streak": 1,
+    "piglets": []
+  },
+  "6382166583": {
+    "username": "Apkiraja",
+    "coins": 7,
+    "streak": 1,
+    "piglets": [],
+    "pig": {
+      "birth_date": "2025-06-08",
+      "fed_dates": [
+        "2025-06-08"
+      ],
+      "pregnant": false,
+      "pregnant_date": null
+    },
+    "claimed_tasks": [
+      "view1",
+      "share1",
+      "join1"
+    ]
+  }
+}

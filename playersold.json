@@ -1,0 +1,19 @@
+{
+  "1576099978": {
+    "username": "DreamStarsInd",
+    "pigs": 1,
+    "last_fed": "2025-06-06",
+    "age":31,
+    "streak": 0,
+    "coins": 1,
+    "is_pregnant": true,
+    "pregnant_since": "2025-06-06",
+    "breed_spent": 1,
+    "pig": {
+      "birth_date": "2025-06-06",
+      "fed_dates": [],
+      "pregnant": false,
+      "pregnant_date": null
+    }
+  }
+}
