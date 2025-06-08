@@ -17,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 
 #start
 
+print("🔑 Loaded token:", TOKEN)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
