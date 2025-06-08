@@ -1,11 +1,17 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+TOKEN = os.getenv("7757528486:AAGzef6JGBch7XUnaqRrtSU_BdRYzPpxf5U")
+
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 import random
 from datetime import datetime, timedelta, timezone
 
 
-import os
-TOKEN = os.getenv("7757528486:AAGzef6JGBch7XUnaqRrtSU_BdRYzPpxf5U")
+#import os
+#TOKEN = os.getenv("7757528486:AAGzef6JGBch7XUnaqRrtSU_BdRYzPpxf5U")
 #TOKEN = '7757528486:AAGzef6JGBch7XUnaqRrtSU_BdRYzPpxf5U'
 
 #start
