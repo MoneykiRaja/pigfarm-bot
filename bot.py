@@ -4,7 +4,8 @@ import random
 from datetime import datetime, timedelta, timezone
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-
+from dotenv import load_dotenv
+load_dotenv()
 # Load token from environment variable
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Use proper env var name
 if not TOKEN:
