@@ -781,7 +781,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("referral", referral))
     app.add_handler(CommandHandler("tasks", tasks))
     app.add_handler(CommandHandler("claim", claim))
-
     app.add_handler(CommandHandler("startmill", startmill))
     app.add_handler(CommandHandler("makefeed", makefeed))
     app.add_handler(CommandHandler("millstatus", millstatus))
