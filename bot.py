@@ -43,6 +43,23 @@ def filter_valid_feed(stock):
     # Optional cleaner to remove spoiled feed — for now, just return stock
     return stock
 
+MILL_LEVELS = {
+    0: {"cooldown": 8, "amount": 2, "type": "normal"},
+    1: {"cooldown": 6, "amount": 3, "type": "normal"},
+    2: {"cooldown": 4, "amount": 4, "type": "normal"},
+    3: {"cooldown": 3, "amount": 5, "type": "normal"},
+    4: {"cooldown": 2, "amount": 6, "type": "normal"},
+    5: {"cooldown": 1, "amount": 7, "type": "normal"},
+    6: {"cooldown": 1, "amount": 8, "type": "premium"},
+}
+
+def can_produce(last_timestamp, cooldown_hours):
+    try:
+        last_time = datetime.fromisoformat(last_timestamp)
+    except:
+        return True
+    now = datetime.now()
+    return (now - last_time).total_seconds() >= cooldown_hours * 3600
 
 # Task list - Admin-defined daily tasks
 TASKS = {
