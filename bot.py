@@ -505,6 +505,266 @@ async def claim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_data(data)
     await update.message.reply_text(reward_msg)
 
+# Feed Mills Code 
+# Start feed mill
+async def startmill(update, context):
+    user_id = str(update.effective_user.id)
+    data = load_feed_data()
+    if user_id in data["mills"]:
+        await update.message.reply_text("🏭 You already own a feed mill!")
+        return
+    data["mills"][user_id] = {
+        "level": 0,
+        "last_production": "1970-01-01T00:00:00",
+        "stock": [],
+        "brand": f"Mill #{user_id[-4:]}",
+        "emoji": "🏭",
+        "slogan": "Quality feed for every pig!",
+        "royalty_points": 0,
+        "sales": 0
+    }
+    save_feed_data(data)
+    await update.message.reply_text("🎉 Feed mill created at level 0! Use /makefeed to produce feed.")
+
+# Make feed
+async def makefeed(update, context):
+    user_id = str(update.effective_user.id)
+    data = load_feed_data()
+    if user_id not in data["mills"]:
+        await update.message.reply_text("❌ You don’t own a feed mill. Use /startmill first.")
+        return
+
+    mill = data["mills"][user_id]
+    mill["stock"] = filter_valid_feed(mill.get("stock", []))
+    level = mill["level"]
+    cooldown = MILL_LEVELS[level]["cooldown"]
+
+    if not can_produce(mill["last_production"], cooldown):
+        await update.message.reply_text("⏳ Your mill is cooling down. Try again later.")
+        return
+
+    amount = MILL_LEVELS[level]["amount"]
+    ftype = MILL_LEVELS[level].get("type", "normal")
+
+    mill["stock"].append({
+        "amount": amount,
+        "type": ftype,
+        "timestamp": datetime.now().isoformat()
+    })
+    mill["last_production"] = datetime.now().isoformat()
+    save_feed_data(data)
+    await update.message.reply_text(f"✅ Produced {amount} units of {ftype} feed!")
+
+# Mill status
+async def millstatus(update, context):
+    user_id = str(update.effective_user.id)
+    data = load_feed_data()
+    if user_id not in data["mills"]:
+        await update.message.reply_text("❌ You don’t own a feed mill. Use /startmill first.")
+        return
+    mill = data["mills"][user_id]
+    stock = filter_valid_feed(mill["stock"])
+    total_feed = sum(item["amount"] for item in stock)
+    time_left = "Ready" if can_produce(mill["last_production"], MILL_LEVELS[mill["level"]]["cooldown"]) else "Cooling down"
+    await update.message.reply_text(
+        f"🏭 {mill['brand']} {mill['emoji']}\n"
+        f"📦 Feed Stock: {total_feed} units\n"
+        f"🧪 Level: {mill['level']}\n"
+        f"⏱️ Cooldown: {time_left}\n"
+        f"💬 Slogan: {mill['slogan']}\n"
+        f"🏅 Royalty Points: {mill['royalty_points']}\n"
+        f"🛒 Total Sales: {mill['sales']}"
+    )
+
+# Upgrade mill
+async def upgrademill(update, context):
+    user_id = str(update.effective_user.id)
+    data = load_feed_data()
+    players = load_data()
+    if user_id not in data["mills"]:
+        await update.message.reply_text("❌ You don’t own a feed mill.")
+        return
+
+    current_level = data["mills"][user_id]["level"]
+    if current_level >= 6:
+        await update.message.reply_text("🔝 Your feed mill is already maxed out!")
+        return
+
+    cost = [0, 10, 20, 30, 50, 75][current_level + 1]
+    if players[user_id]["coins"] < cost:
+        await update.message.reply_text(f"💰 You need {cost} coins to upgrade to level {current_level + 1}.")
+        return
+
+    players[user_id]["coins"] -= cost
+    data["mills"][user_id]["level"] += 1
+    save_data(players)
+    save_feed_data(data)
+    await update.message.reply_text(f"🔧 Upgraded to level {current_level + 1}!")
+
+# Rush mill
+async def rushmill(update, context):
+    user_id = str(update.effective_user.id)
+    data = load_feed_data()
+    players = load_data()
+    if user_id not in data["mills"]:
+        await update.message.reply_text("❌ You don’t own a feed mill.")
+        return
+
+    if players[user_id].get("ton_balance", 0) < 1:
+        await update.message.reply_text("💎 You need at least 1 TON to rush production!")
+        return
+
+    data["mills"][user_id]["last_production"] = "1970-01-01T00:00:00"
+    players[user_id]["ton_balance"] -= 1
+    save_data(players)
+    save_feed_data(data)
+    await update.message.reply_text("⚡ Rush successful! You may now /makefeed immediately.")
+
+# Sell feed
+async def sellfeed(update, context):
+    user_id = str(update.effective_user.id)
+    args = context.args
+    if len(args) != 2:
+        await update.message.reply_text("Usage: /sellfeed amount price")
+        return
+
+    try:
+        amount = int(args[0])
+        price = int(args[1])
+    except ValueError:
+        await update.message.reply_text("❌ Please enter valid numbers.")
+        return
+
+    data = load_feed_data()
+    if user_id not in data["mills"]:
+        await update.message.reply_text("❌ You don’t own a feed mill.")
+        return
+
+    stock = filter_valid_feed(data["mills"][user_id]["stock"])
+    total_feed = sum(item["amount"] for item in stock)
+    if total_feed < amount:
+        await update.message.reply_text("❌ Not enough feed to sell.")
+        return
+
+    # Deduct feed from stock
+    deducted = 0
+    new_stock = []
+    for batch in stock:
+        if deducted >= amount:
+            new_stock.append(batch)
+        elif deducted + batch["amount"] <= amount:
+            deducted += batch["amount"]
+        else:
+            remain = batch["amount"] - (amount - deducted)
+            new_stock.append({"amount": remain, "type": batch["type"], "timestamp": batch["timestamp"]})
+            deducted = amount
+
+    data["mills"][user_id]["stock"] = new_stock
+
+    # Add to market
+    market_entry = {
+        "seller_id": user_id,
+        "amount": amount,
+        "price": price,
+        "type": "premium" if data["mills"][user_id]["level"] == 6 else "normal",
+        "timestamp": datetime.now().isoformat(),
+        "brand": data["mills"][user_id]["brand"],
+        "emoji": data["mills"][user_id]["emoji"],
+        "slogan": data["mills"][user_id]["slogan"],
+        "sales": 0
+    }
+    data["market"].append(market_entry)
+    save_feed_data(data)
+    await update.message.reply_text(f"📦 Listed {amount} feed for {price} coins each.")
+
+# View feed market
+async def feedmarket(update, context):
+    data = load_feed_data()
+    lines = []
+    for i, offer in enumerate(data["market"], 1):
+        lines.append(f"{i}. {offer['emoji']} {offer['brand']} — {offer['amount']} feed @ {offer['price']} coins\n"
+                     f"   “{offer['slogan']}” | Sales: {offer['sales']}")
+    if not lines:
+        await update.message.reply_text("📭 No feed available in the market.")
+        return
+    await update.message.reply_text("📦 FEED MARKET:\n" + "\n".join(lines))
+
+# Buy feed
+async def buyfeed(update, context):
+    user_id = str(update.effective_user.id)
+    args = context.args
+    if len(args) != 2:
+        await update.message.reply_text("Usage: /buyfeed seller_id amount")
+        return
+
+    seller_id = args[0]
+    try:
+        amount = int(args[1])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid amount.")
+        return
+
+    feed_data = load_feed_data()
+    players = load_data()
+    buyer = players.get(user_id)
+    seller = feed_data["mills"].get(seller_id)
+    if not buyer or not seller:
+        await update.message.reply_text("❌ Invalid buyer or seller.")
+        return
+
+    for offer in feed_data["market"]:
+        if offer["seller_id"] == seller_id and offer["amount"] >= amount:
+            total_price = amount * offer["price"]
+            if buyer["coins"] < total_price:
+                await update.message.reply_text("❌ Not enough coins.")
+                return
+
+            offer["amount"] -= amount
+            offer["sales"] += amount
+            feed_data["mills"][seller_id]["royalty_points"] += amount
+            feed_data["mills"][seller_id]["sales"] += amount
+            buyer["coins"] -= total_price
+            players[seller_id]["coins"] += total_price
+
+            save_feed_data(feed_data)
+            save_data(players)
+            await update.message.reply_text(f"✅ Purchased {amount} feed from {offer['brand']}.")
+            return
+
+    await update.message.reply_text("❌ Offer not found or insufficient stock.")
+
+# Brand stats
+async def brandstats(update, context):
+    user_id = str(update.effective_user.id)
+    data = load_feed_data()
+    if user_id not in data["mills"]:
+        await update.message.reply_text("❌ You don’t own a feed mill.")
+        return
+
+    mill = data["mills"][user_id]
+    await update.message.reply_text(
+        f"📊 {mill['brand']} {mill['emoji']}\n"
+        f"🧪 Level: {mill['level']}\n"
+        f"📦 Feed stock: {sum(item['amount'] for item in mill['stock'])}\n"
+        f"🏅 Royalty Points: {mill['royalty_points']}\n"
+        f"🛒 Total Sales: {mill['sales']}"
+    )
+
+# Top brands leaderboard
+async def topbrands(update, context):
+    data = load_feed_data()
+    ranked = sorted(data["mills"].items(), key=lambda x: x[1].get("royalty_points", 0), reverse=True)
+    lines = []
+    for i, (uid, mill) in enumerate(ranked[:5], 1):
+        lines.append(f"{i}. {mill['brand']} {mill['emoji']} — {mill['royalty_points']} RP, {mill['sales']} sales")
+    if not lines:
+        await update.message.reply_text("📭 No branded mills ranked yet.")
+    else:
+        await update.message.reply_text("🏆 Top Feed Brands:\n" + "\n".join(lines))
+
+# 
+
+
 # Main application
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
@@ -522,5 +782,16 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("tasks", tasks))
     app.add_handler(CommandHandler("claim", claim))
 
+    app.add_handler(CommandHandler("startmill", startmill))
+    app.add_handler(CommandHandler("makefeed", makefeed))
+    app.add_handler(CommandHandler("millstatus", millstatus))
+    app.add_handler(CommandHandler("upgrademill", upgrademill))
+    app.add_handler(CommandHandler("rushmill", rushmill))
+    app.add_handler(CommandHandler("sellfeed", sellfeed))
+    app.add_handler(CommandHandler("feedmarket", feedmarket))
+    app.add_handler(CommandHandler("buyfeed", buyfeed))
+    app.add_handler(CommandHandler("brandstats", brandstats))
+    app.add_handler(CommandHandler("topbrands", topbrands))
+   
     print("🐷 Bot is running...")
     app.run_polling()
