@@ -27,6 +27,23 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
+FEED_FILE = "feed_data.json"
+
+def load_feed_data():
+    if os.path.exists(FEED_FILE):
+        with open(FEED_FILE, "r") as f:
+            return json.load(f)
+    return {"mills": {}, "market": []}
+
+def save_feed_data(data):
+    with open(FEED_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def filter_valid_feed(stock):
+    # Optional cleaner to remove spoiled feed — for now, just return stock
+    return stock
+
+
 # Task list - Admin-defined daily tasks
 TASKS = {
     "join1": {
