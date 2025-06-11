@@ -798,6 +798,35 @@ async def topbrands(update, context):
 
 # 
 
+#pork plants 
+
+
+async def startplant(update, context):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+
+    if "plant" in data.get(user_id, {}):
+        await update.message.reply_text("🏭 You already own a pork plant!")
+        return
+
+    if data[user_id].get("ton_balance", 0) < 1:
+        await update.message.reply_text("💎 You need 1 TON to start your pork plant business.")
+        return
+
+    data[user_id]["ton_balance"] -= 1  # Deduct 1 TON
+
+    data[user_id]["plant"] = {
+        "level": 0,
+        "last_meat": "1970-01-01",
+        "last_sausage": "1970-01-01",
+        "last_bacon": "1970-01-01",
+        "processed": 0,
+        "ton_earned": 0
+    }
+
+    save_data(data)
+    await update.message.reply_text("🎉 Welcome to the Sausage Syndicate™! Your pork plant is open for business. 🏭")
+#
 
 # Main application
 if __name__ == "__main__":
@@ -825,6 +854,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("buyfeed", buyfeed))
     app.add_handler(CommandHandler("brandstats", brandstats))
     app.add_handler(CommandHandler("topbrands", topbrands))
+    app.add_handler(CommandHandler("startplant", startplant))
    
     print("🐷 Bot is running...")
     app.run_polling()
