@@ -117,6 +117,8 @@ def mark_processed_today(user_data, product):
     user_data["last_processed"][product] = today
 
 
+EXCHANGE_RATE = 100  # 100 coins = 1 TON 🪙 💰 👛 
+
 
 # Command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -912,6 +914,131 @@ async def process_pig(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ Processed one piglet into {product.upper()}!\n💰 Earned {reward_ton} TON.\nCome back tomorrow to process again."
     )
 #
+# TON #Economy
+
+#ingame
+
+async def wallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+    user = data.get(user_id)
+
+    if not user:
+        await update.message.reply_text("🐷 You don't have a farm yet. Use /myfarm to begin.")
+        return
+
+    ton = user.get("ton_balance", 0)
+    wallet = user.get("ton_wallet", "❌ Not set")
+
+    await update.message.reply_text(
+        f"💼 Your TON Wallet\nBalance: {ton:.2f} TON\nWallet: {wallet}\n\n"
+        "Use /claimton to request payout or /exchangeton <coins> to convert coins into TON.\n"
+        "Set your wallet with: /setwallet YOUR_TON_ADDRESS"
+    )
+#player TON wallet 
+
+async def setwallet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+
+    if user_id not in data:
+        await update.message.reply_text("❌ You don’t have a farm yet. Use /start first.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("📥 Usage: /setwallet YOUR_TON_ADDRESS")
+        return
+
+    address = context.args[0]
+    if not address.startswith("EQ") or len(address) < 20:
+        await update.message.reply_text("❌ Invalid TON address.")
+        return
+
+    data[user_id]["ton_wallet"] = address
+    save_data(data)
+
+    await update.message.reply_text(f"✅ Wallet address saved!\n{address}")
+
+# exchange coins for ton 🪙 💰 
+
+async def exchangeton(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+
+    if user_id not in data:
+        await update.message.reply_text("🐽 You need a farm first! Use /start.")
+        return
+
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("📥 Usage: /exchangeton <coin_amount>")
+        return
+
+    coins_to_convert = int(context.args[0])
+    user = data[user_id]
+    user_coins = user.get("coins", 0)
+
+    if coins_to_convert > user_coins:
+        await update.message.reply_text("❌ Not enough coins.")
+        return
+
+    ton_earned = coins_to_convert / EXCHANGE_RATE
+    user["coins"] -= coins_to_convert
+    user["ton_balance"] = user.get("ton_balance", 0) + ton_earned
+
+    # log exchange
+    if "ton_log" not in user:
+        user["ton_log"] = []
+    user["ton_log"].append({
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "source": f"exchange:{coins_to_convert}coins",
+        "amount": ton_earned
+    })
+
+    save_data(data)
+    await update.message.reply_text(
+        f"🔄 Exchanged {coins_to_convert} coins for {ton_earned:.2f} TON.\n"
+        f"💼 New TON balance: {user['ton_balance']:.2f}"
+    )
+
+
+ADMIN_ID = "6382166583"  # replace with your Telegram ID
+
+async def claimton(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+
+    if user_id not in data:
+        await update.message.reply_text("🐽 You need a farm to claim TON.")
+        return
+
+    user = data[user_id]
+    ton = user.get("ton_balance", 0)
+    wallet = user.get("ton_wallet")
+
+    if not wallet:
+        await update.message.reply_text("❌ Set your wallet first using /setwallet.")
+        return
+
+    if ton < 0.5:
+        await update.message.reply_text("❌ You need at least 0.5 TON to claim.")
+        return
+
+    message = (
+        f"💸 Claim Request Received!\n"
+        f"👤 {user.get('username', 'Unknown')} ({user_id})\n"
+        f"💎 Amount: {ton:.2f} TON\n"
+        f"🏦 Wallet: {wallet}"
+    )
+
+    # Notify admin via private message
+    await context.bot.send_message(chat_id=ADMIN_ID, text=message)
+
+    await update.message.reply_text(
+        "✅ Your TON claim request has been sent to admin.\nPlease wait for manual confirmation."
+    )
+
+#
+
 
 # Main application
 if __name__ == "__main__":
@@ -941,6 +1068,10 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("topbrands", topbrands))
     app.add_handler(CommandHandler("startplant", startplant))
     app.add_handler(CommandHandler("processpig", process_pig))
+    app.add_handler(CommandHandler("wallet", wallet))
+    app.add_handler(CommandHandler("setwallet", setwallet))
+    app.add_handler(CommandHandler("exchangeton", exchangeton))
+    app.add_handler(CommandHandler("claimton", claimton))
 
     print("🐷 Bot is running...")
     app.run_polling()
