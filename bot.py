@@ -92,6 +92,32 @@ MARKET = [
 def refresh_market():
     return random.choices(MARKET, k=3)  # 3 random offers
 
+#porkplant data
+
+
+# 🌭 Pork Plant Levels & Rewards
+PLANT_LEVELS = {
+    0: {"products": ["meat"], "reward": {"meat": 1}},
+    1: {"products": ["meat"], "reward": {"meat": 1}},
+    2: {"products": ["meat"], "reward": {"meat": 1}},
+    3: {"products": ["meat"], "reward": {"meat": 1}},
+    4: {"products": ["meat", "sausage"], "reward": {"meat": 1, "sausage": 2}},
+    5: {"products": ["meat", "sausage"], "reward": {"meat": 1, "sausage": 2}},
+    6: {"products": ["meat", "sausage", "bacon"], "reward": {"meat": 1, "sausage": 2, "bacon": 3.5}}
+}
+
+def has_processed_today(user_data, product):
+    today = datetime.now().strftime("%Y-%m-%d")
+    return user_data.get("last_processed", {}).get(product) == today
+
+def mark_processed_today(user_data, product):
+    today = datetime.now().strftime("%Y-%m-%d")
+    if "last_processed" not in user_data:
+        user_data["last_processed"] = {}
+    user_data["last_processed"][product] = today
+
+
+
 # Command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -826,6 +852,65 @@ async def startplant(update, context):
 
     save_data(data)
     await update.message.reply_text("🎉 Welcome to the Sausage Syndicate™! Your pork plant is open for business. 🏭")
+
+async def process_pig(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+    feed_data = load_feed_data()
+
+    if user_id not in data:
+        await update.message.reply_text("🐷 You don't have a farm yet! Use /myfarm first.")
+        return
+
+    user = data[user_id]
+    mill = feed_data.get(user_id, {})
+    plant_level = mill.get("plant_level", 0)
+    pigs = user.get("piglets", [])
+
+    if not pigs:
+        await update.message.reply_text("🐽 You have no piglets to process!")
+        return
+
+    eligible_pig = None
+    reward_ton = 0
+    product = ""
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    for pig in pigs:
+        age = pig.get("age", 0)
+        pig_type = pig.get("type", "normal")
+
+        # Determine product based on eligibility + level
+        if "bacon" in PLANT_LEVELS[plant_level]["products"]:
+            if pig_type == "golden" and age >= 10 and not has_processed_today(user, "bacon"):
+                product = "bacon"
+                eligible_pig = pig
+                break
+        if "sausage" in PLANT_LEVELS[plant_level]["products"]:
+            if pig_type in ["golden", "spotted"] and not has_processed_today(user, "sausage"):
+                product = "sausage"
+                eligible_pig = pig
+                break
+        if "meat" in PLANT_LEVELS[plant_level]["products"]:
+            if age >= 3 and not has_processed_today(user, "meat"):
+                product = "meat"
+                eligible_pig = pig
+                break
+
+    if not eligible_pig:
+        await update.message.reply_text("⏱️ You’ve already processed a pig today or no piglets meet the criteria.")
+        return
+
+    # Reward TON using PLANT_LEVELS table
+    reward_ton = PLANT_LEVELS[plant_level]["reward"][product]
+    user["ton_balance"] = user.get("ton_balance", 0) + reward_ton
+    user["piglets"].remove(eligible_pig)
+    mark_processed_today(user, product)
+    save_data(data)
+
+    await update.message.reply_text(
+        f"✅ Processed one piglet into {product.upper()}!\n💰 Earned {reward_ton} TON.\nCome back tomorrow to process again."
+    )
 #
 
 # Main application
@@ -855,6 +940,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("brandstats", brandstats))
     app.add_handler(CommandHandler("topbrands", topbrands))
     app.add_handler(CommandHandler("startplant", startplant))
-   
+    app.add_handler(CommandHandler("processpig", process_pig))
+
     print("🐷 Bot is running...")
     app.run_polling()
