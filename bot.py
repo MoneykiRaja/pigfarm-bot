@@ -1173,7 +1173,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("wallet", wallet))
     app.add_handler(CommandHandler("setwallet", setwallet))
     app.add_handler(CommandHandler("exchangeton", exchangeton))
-    app.add_handler(CommandHandler("claimton",claimton)
+    app.add_handler(CommandHandler("claimton",claimton))
     app.add_handler(CommandHandler("tonlog", tonlog))
     app.add_handler(CommandHandler("payuser", payuser))
     app.add_handler(CommandHandler("cashout", cashout))
