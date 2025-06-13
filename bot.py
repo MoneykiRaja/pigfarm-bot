@@ -117,7 +117,7 @@ def mark_processed_today(user_data, product):
     user_data["last_processed"][product] = today
 
 
-EXCHANGE_RATE = 100  # 100 coins = 1 TON 🪙 💰 👛 
+EXCHANGE_RATE = 10  # 100 coins = 1 TON 🪙 💰 👛 
 
 
 # Command handlers
@@ -1037,6 +1037,108 @@ async def claimton(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✅ Your TON claim request has been sent to admin.\nPlease wait for manual confirmation."
     )
 
+ADMIN_IDS = ["6382166583"]  # your admin ID(s)
+
+async def tonlog(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("🚫 You're not authorized to use this command.")
+        return
+
+    data = load_data()
+    ton_summary = []
+
+    for uid, info in data.items():
+        ton = info.get("ton_balance", 0)
+        name = info.get("username", "Unknown")
+        if ton > 0:
+            ton_summary.append((ton, name, uid))
+
+    top_users = sorted(ton_summary, reverse=True)[:10]
+    if not top_users:
+        await update.message.reply_text("📭 No users with TON balance found.")
+        return
+
+    msg = "📊 Top TON Balances:\n"
+    for ton, name, uid in top_users:
+        msg += f"👤 {name} ({uid}) — 💎 {ton:.2f} TON\n"
+
+    await update.message.reply_text(msg)
+
+async def payuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("🚫 You're not authorized.")
+        return
+
+    if len(context.args) < 2:
+        await update.message.reply_text("📥 Usage: /payuser <user_id> <amount>")
+        return
+
+    uid = context.args[0]
+    try:
+        amount = float(context.args[1])
+    except ValueError:
+        await update.message.reply_text("❌ Invalid amount.")
+        return
+
+    data = load_data()
+    user = data.get(uid)
+    if not user:
+        await update.message.reply_text("❌ User not found.")
+        return
+
+    current_balance = user.get("ton_balance", 0)
+    if amount > current_balance:
+        await update.message.reply_text("❌ Not enough TON balance.")
+        return
+
+    user["ton_balance"] = round(current_balance - amount, 2)
+
+    # Optional: Add log entry
+    if "ton_log" not in user:
+        user["ton_log"] = []
+    user["ton_log"].append({
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "source": "admin:cashout",
+        "amount": -amount
+    })
+
+    save_data(data)
+    await update.message.reply_text(f"✅ Deducted {amount} TON from {uid}.\n💼 New balance: {user['ton_balance']:.2f}")
+
+
+async def cashout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("🚫 You're not authorized.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("📥 Usage: /cashout <user_id>")
+        return
+
+    uid = context.args[0]
+    data = load_data()
+    user = data.get(uid)
+    if not user:
+        await update.message.reply_text("❌ User not found.")
+        return
+
+    old_balance = user.get("ton_balance", 0)
+    user["ton_balance"] = 0
+
+    if "ton_log" not in user:
+        user["ton_log"] = []
+    user["ton_log"].append({
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "source": "admin:fullcashout",
+        "amount": -old_balance
+    })
+
+    save_data(data)
+    await update.message.reply_text(f"💸 Full cashout for {uid} completed.\nDeducted {old_balance:.2f} TON.")
+
 #
 
 
@@ -1071,7 +1173,10 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("wallet", wallet))
     app.add_handler(CommandHandler("setwallet", setwallet))
     app.add_handler(CommandHandler("exchangeton", exchangeton))
-    app.add_handler(CommandHandler("claimton", claimton))
-
-    print("🐷 Bot is running...")
+    app.add_handler(CommandHandler("claimton",claimton)
+    app.add_handler(CommandHandler("tonlog", tonlog))
+    app.add_handler(CommandHandler("payuser", payuser))
+    app.add_handler(CommandHandler("cashout", cashout))
+    
+print("🐷 Bot is running...")
     app.run_polling()
