@@ -1178,5 +1178,5 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("payuser", payuser))
     app.add_handler(CommandHandler("cashout", cashout))
     
-print("🐷 Bot is running...")
+    print("🐷 Bot is running...")
     app.run_polling()
