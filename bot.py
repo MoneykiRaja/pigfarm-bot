@@ -117,8 +117,18 @@ def mark_processed_today(user_data, product):
     user_data["last_processed"][product] = today
 
 
-EXCHANGE_RATE = 10  # 100 coins = 1 TON 🪙 💰 👛 
+EXCHANGE_RATE = 100  # 100 coins = 1 TON 🪙 💰 👛 
 
+# 🌭 Pork Plant Levels & Rewards
+PLANT_LEVELS = {
+    0: {"products": ["meat"], "reward": {"meat": 1}},
+    1: {"products": ["meat"], "reward": {"meat": 1}},
+    2: {"products": ["meat"], "reward": {"meat": 1}},
+    3: {"products": ["meat"], "reward": {"meat": 1}},
+    4: {"products": ["meat", "sausage"], "reward": {"meat": 1, "sausage": 2}},
+    5: {"products": ["meat", "sausage"], "reward": {"meat": 1, "sausage": 2}},
+    6: {"products": ["meat", "sausage", "bacon"], "reward": {"meat": 1, "sausage": 2, "bacon": 3.5}}
+        }
 
 # Command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -913,6 +923,92 @@ async def process_pig(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ Processed one piglet into {product.upper()}!\n💰 Earned {reward_ton} TON.\nCome back tomorrow to process again."
     )
+
+async def plantstatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    feed_data = load_feed_data()
+
+    user_plant = feed_data.get(user_id)
+    if not user_plant or "plant_level" not in user_plant:
+        await update.message.reply_text("❌ You don’t have a pork plant yet. Use /startplant to begin.")
+        return
+
+    level = user_plant["plant_level"]
+    unlocked = PLANT_LEVELS[level]["products"]
+    unlocked_emojis = {
+        "meat": "🍖",
+        "sausage": "🌭",
+        "bacon": "🥓"
+    }
+    unlocked_display = ", ".join([unlocked_emojis[p] + " " + p.capitalize() for p in unlocked])
+
+    next_level = level + 1 if level < 6 else None
+    next_unlock = ""
+    if next_level and next_level in PLANT_LEVELS:
+        next_products = PLANT_LEVELS[next_level]["products"]
+        new_unlocks = list(set(next_products) - set(unlocked))
+        if new_unlocks:
+            next_unlock = f"🔐 Next unlock at level {next_level}: " + ", ".join([unlocked_emojis[p] + " " + p.capitalize() for p in new_unlocks])
+    else:
+        next_unlock = "✅ You've unlocked all pork products!"
+
+    message = (
+        f"🏭 Pork Plant Status\n"
+        f"Level: {level}\n"
+        f"🔓 Unlocked: {unlocked_display}\n"
+        f"{next_unlock}\n"
+        f"💰 Daily limit: 1 process per product\n"
+    )
+
+    await update.message.reply_text(message)
+
+async def upgradeplant(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+    feed_data = load_feed_data()
+
+    user = data.get(user_id)
+    plant = feed_data.get(user_id)
+
+    if not user or not plant:
+        await update.message.reply_text("❌ You need a farm and pork plant first.")
+        return
+
+    level = plant.get("plant_level", 0)
+    if level >= 6:
+        await update.message.reply_text("✅ Your plant is already at max level (6)!")
+        return
+
+    ton = user.get("ton_balance", 0)
+    if ton < 1:
+        await update.message.reply_text("❌ You need at least 1 TON to upgrade your plant.")
+        return
+
+    # Upgrade
+    user["ton_balance"] = round(ton - 1, 2)
+    plant["plant_level"] = level + 1
+
+    # Log it
+    if "ton_log" not in user:
+        user["ton_log"] = []
+    user["ton_log"].append({
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "source": "upgradeplant",
+        "amount": -1
+    })
+
+    save_data(data)
+    save_feed_data(feed_data)
+
+    unlocked = PLANT_LEVELS[level + 1]["products"]
+    emojis = {"meat": "🍖", "sausage": "🌭", "bacon": "🥓"}
+    unlocked_str = ", ".join([emojis[p] + " " + p.capitalize() for p in unlocked])
+
+    await update.message.reply_text(
+        f"🎉 Pork Plant upgraded to Level {level + 1}!\n"
+        f"🔓 New unlocks: {unlocked_str}\n"
+        f"💎 Remaining TON: {user['ton_balance']:.2f}"
+    )
 #
 # TON #Economy
 
@@ -1170,6 +1266,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("topbrands", topbrands))
     app.add_handler(CommandHandler("startplant", startplant))
     app.add_handler(CommandHandler("processpig", process_pig))
+    app.add_handler(CommandHandler("plantstatus", plantstatus))
+    app.add_handler(CommandHandler("upgradeplant", upgradeplant))
     app.add_handler(CommandHandler("wallet", wallet))
     app.add_handler(CommandHandler("setwallet", setwallet))
     app.add_handler(CommandHandler("exchangeton", exchangeton))
