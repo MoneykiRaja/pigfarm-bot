@@ -772,7 +772,7 @@ async def feedmarket(update, context):
 #update userid with millions
 def find_user_id_by_mill(mill_id):
     feed_data = load_feed_data()
-    for user_id, mill in feed_data.items():
+    for user_id, mill in feed_data["mills"].items():
         if str(user_id)[-4:] == str(mill_id):
             return user_id
     return None
