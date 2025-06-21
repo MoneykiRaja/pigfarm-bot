@@ -788,7 +788,12 @@ async def buyfeed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🔍 Find actual user_id from mill_id
     seller_id = find_user_id_by_mill(mill_id)
 
-    if not seller_id or seller_id not in feed_data["mills"] or feed_data["mills"][seller_id]["feed_stock"] < amount:
+    if not seller_id or seller_id not in feed_data["mills"] or 
+    feed_data["mills"][seller_id]["feed_stock"] < amount:
+       await update.message.reply_text("❌ Invalid mill or not enough feed available.")
+       return
+
+    #seller_mill = feed_data["mills"][seller_id]
 
     #seller_mill = feed_data[seller_id]
     seller_mill = feed_data["mills"][seller_id]
