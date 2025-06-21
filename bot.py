@@ -63,7 +63,7 @@ def can_produce(last_timestamp, cooldown_hours):
         last_time = datetime.fromisoformat(last_timestamp)
     except:
         return True
-    now = datetime.now()
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     return (now - last_time).total_seconds() >= cooldown_hours * 3600
 
 # Task list - Admin-defined daily tasks
@@ -1441,6 +1441,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("payuser", payuser))
     app.add_handler(CommandHandler("cashout", cashout))
     app.add_handler(CommandHandler("milltofarm", milltofarm))
+    app.add_handler(CommandHandler("backup", backup))
     
     print("🐷 Bot is running...")
     app.run_polling()
