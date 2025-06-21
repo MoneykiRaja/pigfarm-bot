@@ -5,6 +5,11 @@ from datetime import datetime, timedelta, timezone
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
+from telegram.constants import ChatAction
+
+# Better to use environment variable or config file
+
+
 load_dotenv()
 # Load token from environment variable
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Use proper env var name
@@ -1310,6 +1315,93 @@ async def cashout(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 #
 
+ADMIN_ID = os.getenv("ADMIN_ID", "1576099978")
+
+async def backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    
+    # Check admin authorization
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ You're not authorized to use this command.")
+        return
+
+    await update.message.chat.send_action(action=ChatAction.UPLOAD_DOCUMENT)
+
+    files_to_backup = ["data.json", "feed_data.json"]
+    successful_backups = []
+    failed_backups = []
+
+    for filename in files_to_backup:
+        try:
+            # Check if file exists
+            if not os.path.exists(filename):
+                failed_backups.append(f"{filename} (file not found)")
+                continue
+            
+            # Use context manager to ensure file is properly closed
+            with open(filename, "rb") as file:
+                await update.message.reply_document(
+                    document=file, 
+                    filename=filename,
+                    caption=f"📁 Backup: {filename}"
+                )
+            successful_backups.append(filename)
+            
+        except FileNotFoundError:
+            failed_backups.append(f"{filename} (not found)")
+        except PermissionError:
+            failed_backups.append(f"{filename} (permission denied)")
+        except Exception as e:
+            failed_backups.append(f"{filename} (error: {str(e)})")
+
+    # Send summary message
+    if successful_backups and not failed_backups:
+        await update.message.reply_text("✅ Backup complete! All files backed up successfully.")
+    elif successful_backups and failed_backups:
+        await update.message.reply_text(
+            f"⚠️ Partial backup complete!\n"
+            f"✅ Success: {', '.join(successful_backups)}\n"
+            f"❌ Failed: {', '.join(failed_backups)}"
+        )
+    else:
+        await update.message.reply_text(f"❌ Backup failed: {', '.join(failed_backups)}")
+
+# Alternative version with even better error handling
+async def backup_v2(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ You're not authorized to use this command.")
+        return
+
+    await update.message.chat.send_action(action=ChatAction.UPLOAD_DOCUMENT)
+
+    backup_files = [
+        {"path": "data.json", "description": "Main game data"},
+        {"path": "feed_data.json", "description": "Feed mill data"}
+    ]
+
+    for file_info in backup_files:
+        filepath = file_info["path"]
+        description = file_info["description"]
+        
+        try:
+            if not os.path.exists(filepath):
+                await update.message.reply_text(f"⚠️ {description} file ({filepath}) not found, skipping...")
+                continue
+                
+            with open(filepath, "rb") as f:
+                await update.message.reply_document(
+                    document=f,
+                    filename=filepath,
+                    caption=f"📁 {description}"
+                )
+                
+        except Exception as e:
+            await update.message.reply_text(f"❌ Failed to backup {description}: {str(e)}")
+            continue
+
+    await update.message.reply_text("✅ Backup process completed!")
 
 # Main application
 if __name__ == "__main__":
