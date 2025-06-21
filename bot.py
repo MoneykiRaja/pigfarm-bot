@@ -63,7 +63,7 @@ def can_produce(last_timestamp, cooldown_hours):
         last_time = datetime.fromisoformat(last_timestamp)
     except:
         return True
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now()
     return (now - last_time).total_seconds() >= cooldown_hours * 3600
 
 # Task list - Admin-defined daily tasks
@@ -1327,7 +1327,7 @@ async def backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.chat.send_action(action=ChatAction.UPLOAD_DOCUMENT)
 
-    files_to_backup = ["data.json", "feed_data.json"]
+    files_to_backup = ["players.json", "feed_data.json"]
     successful_backups = []
     failed_backups = []
 
@@ -1377,7 +1377,7 @@ async def backup_v2(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.chat.send_action(action=ChatAction.UPLOAD_DOCUMENT)
 
     backup_files = [
-        {"path": "data.json", "description": "Main game data"},
+        {"path": "players.json", "description": "Main game data"},
         {"path": "feed_data.json", "description": "Feed mill data"}
     ]
 
