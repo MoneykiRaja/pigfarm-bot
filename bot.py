@@ -1331,6 +1331,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("tonlog", tonlog))
     app.add_handler(CommandHandler("payuser", payuser))
     app.add_handler(CommandHandler("cashout", cashout))
+    app.add_handler(CommandHandler("milltofarm", milltofarm))
     
     print("🐷 Bot is running...")
     app.run_polling()
