@@ -3,11 +3,12 @@ import json
 import random
 from datetime import datetime, timedelta, timezone
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes
 from dotenv import load_dotenv
 from telegram.constants import ChatAction
 from telegram import Document
 import shutil
+
 # Better to use environment variable or config file
 
 
