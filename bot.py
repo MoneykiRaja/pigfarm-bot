@@ -210,42 +210,46 @@ async def feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
     data = load_data()
-    today = datetime.now(timezone.utc).date()
-    today_str = today.strftime("%Y-%m-%d")
 
-    if user_id not in data or "pig" not in data[user_id]:
-        await update.message.reply_text("🐷 You don't have a pig! Use /buy to start.")
+    if user_id not in data:
+        await update.message.reply_text("🐷 You don't own a pig yet! Use /myfarm to get started.")
         return
 
-    pig = data[user_id]["pig"]
-    fed_dates = pig.get("fed_dates", [])
+    player = data[user_id]
+    today = datetime.utcnow().strftime("%Y-%m-%d")
 
-    # Check if already fed today
-    if today_str in fed_dates:
-        await update.message.reply_text("🍽 You already fed your pig today!")
+    # Ensure feed tracking exists
+    if "feed" not in player:
+        player["feed"] = 0
+
+    if player["feed"] <= 0:
+        await update.message.reply_text("❌ You don’t have any feed! Use /buyfeed or /makefeed.")
         return
 
-    # Append today's feed date
-    fed_dates.append(today_str)
-    pig["fed_dates"] = fed_dates
+    pig = player["pig"]
+    if today in pig.get("fed_dates", []):
+        await update.message.reply_text("🐖 Your pig has already been fed today.")
+        return
 
-    # Streak logic (based on consecutive days)
-    streak = data[user_id].get("streak", 0)
-    yesterday = (today - timedelta(days=1)).strftime("%Y-%m-%d")
-    
-    if len(fed_dates) == 1 or yesterday in fed_dates:
-        streak += 1
-        data[user_id]["coins"] = data[user_id].get("coins", 0) + 1
-        streak_msg = f"🔥 Streak: {streak} days! (+1 coin)"
-    else:
-        streak = 1
-        streak_msg = "🍽 Pig fed! Streak restarted."
+    # Feed pig
+    pig.setdefault("fed_dates", []).append(today)
+    player["streak"] = player.get("streak", 0) + 1
+    player["feed"] -= 1
 
-    data[user_id]["streak"] = streak
+    # Reward coins
+    coins_earned = 1
+    if player["streak"] % 3 == 0:
+        coins_earned += 1
+
+    player["coins"] += coins_earned
+
     save_data(data)
 
     await update.message.reply_text(
-        f"✅ Your pig enjoyed the meal!\n{streak_msg}\n💰 Coins: {data[user_id]['coins']}"
+        f"✅ Your pig enjoyed the meal!\n"
+        f"🔥 Streak: {player['streak']} days! (+{coins_earned} coins)\n"
+        f"💰 Coins: {player['coins']}\n"
+        f"📦 Feed left: {player['feed']}"
     )
 
 async def myfarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -266,6 +270,7 @@ async def myfarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     age = (today - birth_date).days
     streak = user_data.get("streak", 0)
     coins = user_data.get("coins", 0)
+    feed_stock = user_data.get("feed", 0)
 
     # Mood check
     last_fed = pig["fed_dates"][-1] if pig["fed_dates"] else None
@@ -305,6 +310,7 @@ async def myfarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"❤️ Mood: {mood}\n"
         f"🐽 Piglets: {piglet_count}\n"
         f"{pregnant_msg}"
+        f"📦 Feed Stock: {feed_stock}"
     )
 
 async def breed(update: Update, context: ContextTypes.DEFAULT_TYPE):
