@@ -120,15 +120,6 @@ def mark_processed_today(user_data, product):
 EXCHANGE_RATE = 100  # 100 coins = 1 TON 🪙 💰 👛 
 
 # 🌭 Pork Plant Levels & Rewards
-PLANT_LEVELS = {
-    0: {"products": ["meat"], "reward": {"meat": 1}},
-    1: {"products": ["meat"], "reward": {"meat": 1}},
-    2: {"products": ["meat"], "reward": {"meat": 1}},
-    3: {"products": ["meat"], "reward": {"meat": 1}},
-    4: {"products": ["meat", "sausage"], "reward": {"meat": 1, "sausage": 2}},
-    5: {"products": ["meat", "sausage"], "reward": {"meat": 1, "sausage": 2}},
-    6: {"products": ["meat", "sausage", "bacon"], "reward": {"meat": 1, "sausage": 2, "bacon": 3.5}}
-        }
 
 # Command handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -797,11 +788,10 @@ async def buyfeed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 🔍 Find actual user_id from mill_id
     seller_id = find_user_id_by_mill(mill_id)
 
-    if not seller_id or seller_id not in feed_data or feed_data[seller_id]["feed_stock"] < amount:
-        await update.message.reply_text("❌ Invalid mill or not enough feed available.")
-        return
+    if not seller_id or seller_id not in feed_data["mills"] or feed_data["mills"][seller_id]["feed_stock"] < amount:
 
-    seller_mill = feed_data[seller_id]
+    #seller_mill = feed_data[seller_id]
+    seller_mill = feed_data["mills"][seller_id]
     total_price = amount * seller_mill["price"]
 
     if data[user_id]["coins"] < total_price:
@@ -812,9 +802,9 @@ async def buyfeed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data[user_id]["feed"] = data[user_id].get("feed", 0) + amount
     data[user_id]["coins"] -= total_price
 
-    feed_data[seller_id]["feed_stock"] -= amount
-    feed_data[seller_id]["sales"] += amount
-    feed_data[seller_id]["royalty_points"] += amount
+    feed_data["mills"][seller_id]["feed_stock"] -= amount
+    feed_data["mills"][seller_id]["sales"] += amount
+    feed_data["mills"][seller_id]["royalty_points"] += amount
     data[seller_id]["coins"] += total_price
 
     save_data(data)
@@ -834,7 +824,7 @@ async def milltofarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🐷 You don't own a pig yet. Use /myfarm to get started.")
         return
 
-    if user_id not in feed_data:
+    if user_id not in feed_data["mills"]:
         await update.message.reply_text("🏭 You don't own a feed mill yet. Use /startmill to begin.")
         return
 
@@ -844,12 +834,12 @@ async def milltofarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     amount = int(context.args[0])
 
-    if feed_data[user_id]["feed_stock"] < amount:
+    if feed_data["mills"][user_id]["feed_stock"] < amount:
         await update.message.reply_text("❌ Not enough feed in your mill to transfer.")
         return
 
     # Transfer
-    feed_data[user_id]["feed_stock"] -= amount
+    feed_data["mills"][user_id]["feed_stock"] -= amount
     data[user_id]["feed"] = data[user_id].get("feed", 0) + amount
 
     save_feed_data(feed_data)
@@ -858,8 +848,8 @@ async def milltofarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"✅ Moved {amount} feed from your Mill to your Farm.\n"
         f"📦 Farm Feed: {data[user_id]['feed']} units\n"
-        f"🏭 Mill Feed: {feed_data[user_id]['feed_stock']} units"
-    )
+        f"🏭 Mill Feed: {feed_data['mills'][user_id]['feed_stock']} units"
+        )
 
 # Brand stats
 async def brandstats(update, context):
