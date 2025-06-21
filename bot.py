@@ -6,7 +6,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from dotenv import load_dotenv
 from telegram.constants import ChatAction
-
+from telegram import Document
+import shutil
 # Better to use environment variable or config file
 
 
@@ -1384,6 +1385,32 @@ async def backup_v2(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("✅ Backup process completed!")
 
+async def restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ You're not authorized to restore.")
+        return
+
+    if not update.message.document:
+        await update.message.reply_text("📂 Please send a JSON file (data.json or feed_data.json) to restore.")
+        return
+
+    doc: Document = update.message.document
+    file_name = doc.file_name
+
+    if file_name not in ["data.json", "feed_data.json"]:
+        await update.message.reply_text("❌ Only 'data.json' or 'feed_data.json' are allowed.")
+        return
+
+    file = await context.bot.get_file(doc.file_id)
+    file_path = f"./{file_name}"
+
+    try:
+        await file.download_to_drive(file_path)
+        await update.message.reply_text(f"✅ Restored {file_name} successfully!")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Restore failed: {e}")
+
 # Main application
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
@@ -1423,6 +1450,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("cashout", cashout))
     app.add_handler(CommandHandler("milltofarm", milltofarm))
     app.add_handler(CommandHandler("backup", backup))
+    app.add_handler(MessageHandler(filters.Document.ALL, restore))
     
     print("🐷 Bot is running...")
     app.run_polling()
