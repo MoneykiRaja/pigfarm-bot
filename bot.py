@@ -830,59 +830,40 @@ async def milltofarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
 
-    # Validate input first
+    data = load_data()
+    feed_data = load_feed_data()
+
+    if user_id not in data:
+        await update.message.reply_text("🐷 You don't own a pig yet. Use /myfarm to get started.")
+        return
+
+    if user_id not in feed_data.get("mills", {}):
+        await update.message.reply_text("🏭 You don't own a feed mill yet. Use /startmill to begin.")
+        return
+
     if len(context.args) != 1 or not context.args[0].isdigit():
         await update.message.reply_text("Usage: /milltofarm <amount>")
         return
 
     amount = int(context.args[0])
-    
-    # Validate amount range
-    if amount <= 0:
-        await update.message.reply_text("❌ Amount must be greater than 0.")
-        return
-    
-    if amount > 1000000:  # Set reasonable limit
-        await update.message.reply_text("❌ Amount too large.")
-        return
+    mill = feed_data["mills"][user_id]
 
-    # Load data closer to when it's needed
-    data = load_data()
-    feed_data = load_feed_data()
-
-    # Check user exists
-    if user_id not in data:
-        await update.message.reply_text("🐷 You don't own a pig yet. Use /myfarm to get started.")
-        return
-
-    # Check mill exists
-    if user_id not in feed_data["mills"]:
-        await update.message.reply_text("🏭 You don't own a feed mill yet. Use /startmill to begin.")
-        return
-
-    # Check sufficient feed
-    if feed_data["mills"][user_id]["feed_stock"] < amount:
+    if len(mill["stock"]) < amount:
         await update.message.reply_text("❌ Not enough feed in your mill to transfer.")
         return
 
-    # Perform transfer
-    feed_data["mills"][user_id]["feed_stock"] -= amount
-    data[user_id]["feed"] = data[user_id].get("feed", 0) + amount
+    # Transfer feed items from mill stock to player's feed
+    mill["stock"] = mill["stock"][amount:]  # Remove from mill
+    data[user_id]["feed"] = data[user_id].get("feed", 0) + amount  # Add to farm
 
-    # Save data immediately after modification
-    try:
-        save_feed_data(feed_data)
-        save_data(data)
-    except Exception as e:
-        await update.message.reply_text("❌ Error saving data. Please try again.")
-        return
+    save_feed_data(feed_data)
+    save_data(data)
 
     await update.message.reply_text(
         f"✅ Moved {amount} feed from your Mill to your Farm.\n"
         f"📦 Farm Feed: {data[user_id]['feed']} units\n"
-        f"🏭 Mill Feed: {feed_data['mills'][user_id]['feed_stock']} units"
+        f"🏭 Mill Feed: {len(mill['stock'])} units"
     )
-
 # Brand stats
 async def brandstats(update, context):
     user_id = str(update.effective_user.id)
