@@ -768,48 +768,98 @@ async def feedmarket(update, context):
     await update.message.reply_text("📦 FEED MARKET:\n" + "\n".join(lines))
 
 # Buy feed
-async def buyfeed(update, context):
-    user_id = str(update.effective_user.id)
-    args = context.args
-    if len(args) != 2:
-        await update.message.reply_text("Usage: /buyfeed seller_id amount")
-        return
 
-    seller_id = args[0]
-    try:
-        amount = int(args[1])
-    except ValueError:
-        await update.message.reply_text("❌ Invalid amount.")
-        return
-
+#update userid with millions
+def find_user_id_by_mill(mill_id):
     feed_data = load_feed_data()
-    players = load_data()
-    buyer = players.get(user_id)
-    seller = feed_data["mills"].get(seller_id)
-    if not buyer or not seller:
-        await update.message.reply_text("❌ Invalid buyer or seller.")
+    for user_id, mill in feed_data.items():
+        if str(user_id)[-4:] == str(mill_id):
+            return user_id
+    return None
+    
+#async def buyfeed(update, context):
+async def buyfeed(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    data = load_data()
+    feed_data = load_feed_data()
+
+    if user_id not in data:
+        await update.message.reply_text("🐷 You don't own a pig yet! Use /myfarm first.")
         return
 
-    for offer in feed_data["market"]:
-        if offer["seller_id"] == seller_id and offer["amount"] >= amount:
-            total_price = amount * offer["price"]
-            if buyer["coins"] < total_price:
-                await update.message.reply_text("❌ Not enough coins.")
-                return
+    if len(context.args) != 2:
+        await update.message.reply_text("Usage: /buyfeed mill_id amount")
+        return
 
-            offer["amount"] -= amount
-            offer["sales"] += amount
-            feed_data["mills"][seller_id]["royalty_points"] += amount
-            feed_data["mills"][seller_id]["sales"] += amount
-            buyer["coins"] -= total_price
-            players[seller_id]["coins"] += total_price
+    mill_id, amount = context.args
+    amount = int(amount)
 
-            save_feed_data(feed_data)
-            save_data(players)
-            await update.message.reply_text(f"✅ Purchased {amount} feed from {offer['brand']}.")
-            return
+    # 🔍 Find actual user_id from mill_id
+    seller_id = find_user_id_by_mill(mill_id)
 
-    await update.message.reply_text("❌ Offer not found or insufficient stock.")
+    if not seller_id or seller_id not in feed_data or feed_data[seller_id]["feed_stock"] < amount:
+        await update.message.reply_text("❌ Invalid mill or not enough feed available.")
+        return
+
+    seller_mill = feed_data[seller_id]
+    total_price = amount * seller_mill["price"]
+
+    if data[user_id]["coins"] < total_price:
+        await update.message.reply_text("💰 You don't have enough coins to buy this feed.")
+        return
+
+    # Do the trade
+    data[user_id]["feed"] = data[user_id].get("feed", 0) + amount
+    data[user_id]["coins"] -= total_price
+
+    feed_data[seller_id]["feed_stock"] -= amount
+    feed_data[seller_id]["sales"] += amount
+    feed_data[seller_id]["royalty_points"] += amount
+    data[seller_id]["coins"] += total_price
+
+    save_data(data)
+    save_feed_data(feed_data)
+
+    await update.message.reply_text(f"✅ Purchased {amount} feed from Mill #{mill_id} for {total_price} coins.")
+
+#updated milltofarm
+async def milltofarm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = str(user.id)
+
+    data = load_data()
+    feed_data = load_feed_data()
+
+    if user_id not in data:
+        await update.message.reply_text("🐷 You don't own a pig yet. Use /myfarm to get started.")
+        return
+
+    if user_id not in feed_data:
+        await update.message.reply_text("🏭 You don't own a feed mill yet. Use /startmill to begin.")
+        return
+
+    if len(context.args) != 1 or not context.args[0].isdigit():
+        await update.message.reply_text("Usage: /milltofarm <amount>")
+        return
+
+    amount = int(context.args[0])
+
+    if feed_data[user_id]["feed_stock"] < amount:
+        await update.message.reply_text("❌ Not enough feed in your mill to transfer.")
+        return
+
+    # Transfer
+    feed_data[user_id]["feed_stock"] -= amount
+    data[user_id]["feed"] = data[user_id].get("feed", 0) + amount
+
+    save_feed_data(feed_data)
+    save_data(data)
+
+    await update.message.reply_text(
+        f"✅ Moved {amount} feed from your Mill to your Farm.\n"
+        f"📦 Farm Feed: {data[user_id]['feed']} units\n"
+        f"🏭 Mill Feed: {feed_data[user_id]['feed_stock']} units"
+    )
 
 # Brand stats
 async def brandstats(update, context):
