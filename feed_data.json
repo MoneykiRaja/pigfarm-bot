@@ -1,4 +1,14 @@
 {
-  "mills": {},
+  "mills": {
+    "1576099978": {
+      "feed_stock": 2,
+      "price": 1,
+      "sales": 0,
+      "royalty_points": 0,
+      "level": 0,
+      "cooldown": "2025-06-21 08:00",
+      "slogan": "Quality feed for every pig!"
+    }
+  },
   "market": []
 }
