@@ -15,7 +15,8 @@
     },
     "coins": 11,
     "streak": 1,
-    "piglets": []
+    "piglets": [],
+    "claimed_tasks": []
   },
   "6382166583": {
     "username": "Apkiraja",
@@ -30,10 +31,6 @@
       "pregnant": false,
       "pregnant_date": null
     },
-    "claimed_tasks": [
-      "view1",
-      "share1",
-      "join1"
-    ]
+    "claimed_tasks": []
   }
 }
