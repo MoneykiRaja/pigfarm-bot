@@ -130,6 +130,17 @@ def mark_processed_today(user_data, product):
         user_data["last_processed"] = {}
     user_data["last_processed"][product] = today
 
+def load_tasks():
+    try:
+        with open("tasks.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"tasks": []}
+
+def save_tasks(tasks):
+    with open("tasks.json", "w") as f:
+        json.dump(tasks, f, indent=2)
+
 
 EXCHANGE_RATE = 100  # 100 coins = 1 TON 🪙 💰 👛 
 
@@ -1419,6 +1430,40 @@ async def restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Restore failed: {e}")
 
+ADMIN_IDS = ["1576099978"]  # Replace with your admin Telegram ID(s)
+
+async def posttask(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ You are not authorized to post tasks.")
+        return
+
+    if len(context.args) < 3:
+        await update.message.reply_text("Usage: /posttask <taskcode> <coins> <task message>")
+        return
+
+    taskcode = context.args[0]
+    coins = int(context.args[1])
+    message = " ".join(context.args[2:])
+
+    tasks_data = load_tasks()
+
+    # Avoid duplicate codes
+    for task in tasks_data["tasks"]:
+        if task["code"] == taskcode:
+            await update.message.reply_text("⚠️ A task with this code already exists.")
+            return
+
+    tasks_data["tasks"].append({
+        "code": taskcode,
+        "reward": coins,
+        "message": message
+    })
+
+    save_tasks(tasks_data)
+    await update.message.reply_text(f"✅ Task '{taskcode}' posted and saved!")
+
+
 # Main application
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TOKEN).build()
@@ -1459,6 +1504,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("milltofarm", milltofarm))
     app.add_handler(CommandHandler("backup", backup))
     app.add_handler(MessageHandler(filters.Document.ALL, restore))
+    app.add_handler(CommandHandler("posttask", posttask))
     
     print("🐷 Bot is running...")
     app.run_polling()
