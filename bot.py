@@ -547,58 +547,64 @@ async def referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    data = load_data()
-    user_data = data.get(user_id, {})
-    claimed_tasks = user_data.get("claimed_tasks", [])
+    tasks_data = load_tasks()
     
-    msg = "📋 Daily Piggy Tasks:\n\n"
+    if not tasks_data["tasks"]:
+        await update.message.reply_text("📭 No tasks available at the moment.")
+        return
 
-    for code, task in TASKS.items():
-        status = "✅ Completed" if code in claimed_tasks else "🔹 Available"
-        msg += f"{status} {task['description']}\n"
-        if task["url"]:
-            msg += f"🔗 {task['url']}\n"
-        reward_text = f"{task['reward']} coins"
-        msg += f"🏆 Reward: {reward_text}\n"
-        if code not in claimed_tasks:
-            msg += f"➡️ Type `/claim {code}` to receive reward\n"
-        msg += "\n"
+    msg = "🎯 *Active Tasks:*\n\n"
+    for task in tasks_data["tasks"]:
+        msg += f"• `{task['code']}` — {task['message']}\n"
+        msg += f"💰 Reward: {task['reward']} coins\n"
+        msg += f"✅ Use: /claim {task['code']}\n\n"
+
+    await update.message.reply_text(msg, parse_mode="Markdown")
     
-    await update.message.reply_text(msg)
 
 async def claim(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
     data = load_data()
-    user_data = data.get(user_id, {})
+    tasks_data = load_tasks()
 
-    if not context.args:
-        await update.message.reply_text("⚠️ Usage: /claim <taskcode>")
+    if user_id not in data:
+        await update.message.reply_text("🐷 You need a farm first! Use /myfarm.")
         return
 
-    task_code = context.args[0]
-    task = TASKS.get(task_code)
-
-    if not task:
-        await update.message.reply_text("❌ Invalid task code.")
+    if len(context.args) != 1:
+        await update.message.reply_text("Usage: /claim <taskcode>")
         return
 
-    # Prevent duplicate claiming
-    claimed = user_data.get("claimed_tasks", [])
-    if task_code in claimed:
-        await update.message.reply_text("🙅 You've already claimed this task.")
+    taskcode = context.args[0]
+
+    user = data[user_id]
+    user.setdefault("claimed_tasks", [])
+
+    # Already claimed?
+    if taskcode in user["claimed_tasks"]:
+        await update.message.reply_text("⚠️ You’ve already claimed this task.")
         return
 
-    # Reward
-    user_data["coins"] = user_data.get("coins", 0) + task["reward"]
-    reward_msg = f"💰 You earned {task['reward']} coins!"
+    # Find task
+    reward = None
+    for task in tasks_data["tasks"]:
+        if task["code"] == taskcode:
+            reward = task["reward"]
+            break
 
-    claimed.append(task_code)
-    user_data["claimed_tasks"] = claimed
-    data[user_id] = user_data
+    if reward is None:
+        await update.message.reply_text("❌ Task not found.")
+        return
+
+    # Award coins + log claim
+    user["coins"] = user.get("coins", 0) + reward
+    user["claimed_tasks"].append(taskcode)
+
     save_data(data)
-    await update.message.reply_text(reward_msg)
 
+    await update.message.reply_text(
+        f"🎉 You earned {reward} coins for completing `{taskcode}`!"
+    )
 # Feed Mills Code 
 # Start feed mill
 async def startmill(update, context):
@@ -1417,8 +1423,8 @@ async def restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
     doc: Document = update.message.document
     file_name = doc.file_name
 
-    if file_name not in ["data.json", "feed_data.json"]:
-        await update.message.reply_text("❌ Only 'data.json' or 'feed_data.json' are allowed.")
+    if file_name not in ["players.json", "feed_data.json"]:
+        await update.message.reply_text("❌ Only 'players.json' or 'feed_data.json' are allowed.")
         return
 
     file = await context.bot.get_file(doc.file_id)
@@ -1505,6 +1511,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("backup", backup))
     app.add_handler(MessageHandler(filters.Document.ALL, restore))
     app.add_handler(CommandHandler("posttask", posttask))
+    #app.add_handler(CommandHandler("tasks", tasks))
     
     print("🐷 Bot is running...")
     app.run_polling()
