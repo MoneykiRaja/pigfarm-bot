@@ -1469,6 +1469,30 @@ async def posttask(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_tasks(tasks_data)
     await update.message.reply_text(f"✅ Task '{taskcode}' posted and saved!")
 
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.effective_user.id)
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("❌ You’re not allowed to use this command.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /broadcast <your message>")
+        return
+
+    message = "📢 *Admin Message:*\n" + " ".join(context.args)
+    data = load_data()
+
+    count = 0
+    for uid in data:
+        try:
+            await context.bot.send_message(chat_id=int(uid), text=message, parse_mode="Markdown")
+            count += 1
+        except:
+            pass  # Skip failed sends (user may have blocked bot)
+
+    await update.message.reply_text(f"✅ Message sent to {count} players!")
+
+
 
 # Main application
 if __name__ == "__main__":
@@ -1512,6 +1536,7 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.Document.ALL, restore))
     app.add_handler(CommandHandler("posttask", posttask))
     #app.add_handler(CommandHandler("tasks", tasks))
+    app.add_handler(CommandHandler("broadcast", broadcast))
     
     print("🐷 Bot is running...")
     app.run_polling()
